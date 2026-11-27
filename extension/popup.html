@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chess Move Coach</title>
+<style>
+  :root { --bg: #262522; --bg2: #302e2b; --fg: #f1efe9; --muted: #a8a49c; --accent: #81b64c; color-scheme: dark; }
+  @media (prefers-color-scheme: light) { :root { --bg: #fff; --bg2: #f3f1ec; --fg: #1d1c1a; --muted: #67635c; color-scheme: light; } }
+  body { margin: 0; width: 300px; background: var(--bg); color: var(--fg); font: 13.5px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; gap: 9px; align-items: center; padding: 14px 16px 10px; }
+  header img { width: 26px; height: 26px; }
+  h1 { font-size: 15px; margin: 0; }
+  main { padding: 0 16px 16px; }
+  p { margin: 0 0 10px; color: var(--muted); }
+  ol { margin: 0 0 12px; padding-left: 18px; }
+  li { margin: 4px 0; }
+  .note { background: var(--bg2); border-radius: 10px; padding: 9px 11px; font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  .note strong { color: var(--fg); }
+  button { all: unset; box-sizing: border-box; display: block; width: 100%; text-align: center; padding: 9px; border-radius: 9px; background: var(--accent); color: #17230c; font-weight: 700; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #9ecbff; outline-offset: 2px; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid #8884; border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<header><img src="icons/icon48.png" alt=""><h1>Chess Move Coach</h1></header>
+<main>
+  <p>Feedback appears in a panel on chess.com, one move at a time.</p>
+  <ol>
+    <li>Open a finished game, Analysis, or a game vs the computer.</li>
+    <li>Step through moves. Read the one-line quick take.</li>
+    <li>Want the why? Open <strong>Deep dive</strong> or press <kbd>Alt</kbd>+<kbd>D</kbd>.</li>
+  </ol>
+  <div class="note"><strong>Fair play:</strong> the coach pauses during games against people and wakes up when the game ends.</div>
+  <button id="open">Open the Analysis board</button>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>

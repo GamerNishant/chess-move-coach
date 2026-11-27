@@ -1,0 +1,14 @@
+{
+  "name": "chess-move-coach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Move-by-move feedback for chess.com as a Chromium extension and a Tampermonkey userscript.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "icons": "node scripts/icons.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/build.mjs && powershell -NoProfile -Command \"New-Item -ItemType Directory -Force dist | Out-Null; Compress-Archive -Force -Path extension/* -DestinationPath dist/chess-move-coach-extension.zip\""
+  }
+}

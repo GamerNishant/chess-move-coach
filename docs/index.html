@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess Move Coach</title>
+<meta name="description" content="Move-by-move feedback on chess.com: a one-line quick take, plus a deep dive into your opponent's plan. Runs Stockfish on your device.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #f7f5f1; --surface: #ffffff; --surface2: #efece6; --fg: #1d1c1a; --muted: #5f5b54; --line: rgba(0,0,0,.09);
+    --accent: #5d8f2c; --accent-fg: #ffffff; --blunder: #d6452f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1f1e1c; --surface: #262522; --surface2: #302e2b; --fg: #f1efe9; --muted: #a8a49c; --line: rgba(255,255,255,.08);
+      --accent: #81b64c; --accent-fg: #17230c; --blunder: #e5533d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1f1e1c; --surface: #262522; --surface2: #302e2b; --fg: #f1efe9; --muted: #a8a49c; --line: rgba(255,255,255,.08);
+    --accent: #81b64c; --accent-fg: #17230c; --blunder: #e5533d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header.hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; padding: 72px 0 56px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; margin-bottom: 20px; color: var(--muted); }
+  .brand img { width: 32px; height: 32px; }
+  h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -.02em; }
+  .lede { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 10px; font-weight: 650; text-decoration: none; font-size: 15px; }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); }
+  .btn.ghost { background: var(--surface2); color: var(--fg); }
+  .btn:focus-visible { outline: 3px solid #4a90e2; outline-offset: 2px; }
+  /* panel mock (mirrors the real UI) */
+  .panel { background: #262522; color: #f1efe9; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.28); font-size: 13.5px; line-height: 1.45; }
+  .panel .head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; background: #302e2b; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .panel .logo { width: 18px; height: 18px; border-radius: 5px; background: #81b64c; color: #1b2a10; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+  .panel .chip { font-size: 11px; color: #a8a49c; background: #3c3a37; padding: 2px 7px; border-radius: 999px; }
+  .panel .body { padding: 12px 14px 14px; }
+  .panel .row { display: flex; align-items: center; }
+  .panel .who { font-size: 11px; color: #a8a49c; text-transform: uppercase; letter-spacing: .6px; }
+  .panel .san { font-size: 18px; font-weight: 700; }
+  .panel .badge { margin-left: auto; background: #e5533d; color: #fff; border-radius: 999px; padding: 3px 9px; font-weight: 650; font-size: 12px; }
+  .panel .ev { display: flex; align-items: center; gap: 8px; margin: 8px 0 10px; color: #a8a49c; font-size: 12px; }
+  .panel .bar { flex: 1; height: 6px; border-radius: 999px; background: #1a1917; overflow: hidden; }
+  .panel .bar i { display: block; width: 72%; height: 100%; background: #eeeae2; }
+  .panel .hl { font-weight: 600; font-size: 14.5px; margin: 0 0 4px; }
+  .panel .nx { color: #a8a49c; margin: 0; }
+  .panel .better { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(129,182,76,.14); border: 1px solid rgba(129,182,76,.35); }
+  .panel .better b { color: #81b64c; }
+  .panel .deep { margin-top: 12px; padding: 8px 10px; border-radius: 10px; background: #302e2b; font-weight: 600; display: flex; }
+  .panel .deep span { margin-left: auto; font: 11px ui-monospace, monospace; color: #a8a49c; }
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 26px; margin: 0 0 8px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .card ol { margin: 10px 0 16px; padding-left: 20px; color: var(--muted); font-size: 15px; }
+  .card li { margin: 4px 0; }
+  .num { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--surface2); font-weight: 700; margin-bottom: 10px; }
+  code, kbd { font: 13px ui-monospace, Consolas, monospace; background: var(--surface2); padding: 1px 6px; border-radius: 5px; }
+  .note { display: flex; gap: 14px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 18px 20px; }
+  .note p { margin: 0; color: var(--muted); }
+  .note strong { color: var(--fg); }
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+  footer a { color: inherit; }
+  @media (max-width: 820px) {
+    header.hero { grid-template-columns: 1fr; padding-top: 40px; gap: 32px; }
+    .grid3, .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <div class="brand"><img src="icon.svg" alt="">Chess Move Coach</div>
+      <h1>Know what every move did, and what's coming next.</h1>
+      <p class="lede">A small panel on chess.com that explains each move in one line, and goes deeper into your opponent's plan when you want it. Stockfish runs on your own device.</p>
+      <div class="ctas">
+        <a class="btn primary" href="chess-move-coach.user.js">Install the userscript</a>
+        <a class="btn ghost" href="https://github.com/GamerNishant/chess-move-coach/releases/latest">Get the browser extension</a>
+      </div>
+    </div>
+    <div class="panel" role="img" aria-label="Example: the coach panel calling 4…Bc5 a blunder because it allows Nxf7, forking rook and queen">
+      <div class="head"><div class="logo">!</div><b>Move Coach</b><span class="chip">Game review</span></div>
+      <div class="body">
+        <div class="row"><div><div class="who">Your move</div><div class="san">4… Bc5</div></div><span class="badge">?? Blunder</span></div>
+        <div class="ev">−0.4 → −3.5 <div class="bar"><i></i></div></div>
+        <p class="hl">Allows Nxf7, which takes your pawn on f7, forks your rook and queen.</p>
+        <p class="nx">Turns a level game into a losing position.</p>
+        <div class="better"><b>Better: …d5</b> attacks their bishop on c4</div>
+        <div class="deep">▸ Deep dive: plans &amp; threats <span>Alt+D</span></div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Two levels of feedback</h2>
+    <p class="sub">Short by default, so stepping through 40 moves never turns into homework.</p>
+    <div class="grid3">
+      <div class="card"><div class="num">1</div><h3>Quick take</h3><p>One line on what the move did, one on what happens next, and a better move when there was one.</p></div>
+      <div class="card"><div class="num">2</div><h3>Deep dive</h3><p>What your move changed, your opponent's plan move by move, and how to answer it. Opens with a click or <kbd>Alt</kbd>+<kbd>D</kbd>.</p></div>
+      <div class="card"><div class="num">3</div><h3>Grounded in the engine</h3><p>Each sentence comes from Stockfish's best line plus a board check for forks, hanging pieces and threats.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Install</h2>
+    <p class="sub">Pick one. Both share the same code and look the same on chess.com.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Userscript (any browser)</h3>
+        <ol>
+          <li>Install <a href="https://www.tampermonkey.net/">Tampermonkey</a> or Violentmonkey.</li>
+          <li>Click the button below, then <em>Install</em>.</li>
+          <li>Open a finished game or Analysis on chess.com.</li>
+        </ol>
+        <a class="btn primary" href="chess-move-coach.user.js">Install the userscript</a>
+      </div>
+      <div class="card">
+        <h3>Extension (Chrome, Edge, Brave)</h3>
+        <ol>
+          <li>Download <code>chess-move-coach-extension.zip</code> from the latest release and unzip it.</li>
+          <li>Open <code>chrome://extensions</code> and turn on Developer mode.</li>
+          <li>Click <em>Load unpacked</em> and pick the unzipped folder.</li>
+        </ol>
+        <a class="btn ghost" href="https://github.com/GamerNishant/chess-move-coach/releases/latest">Download the latest release</a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <div aria-hidden="true" style="font-size:22px">⏸</div>
+      <p><strong>Fair play built in.</strong> Using an engine during a game against a person breaks chess.com's rules. The coach stays paused while that kind of game is running, and in puzzles. It works in Analysis, in games against the computer, and on any game once it has ended.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Privacy</h2>
+    <p class="sub" style="margin:0">The extension sends nothing anywhere; the engine runs in your browser. The userscript does the same, unless the local engine can't start and you switch on the optional online engine, which sends only the board position (a FEN string) to chess-api.com.</p>
+  </section>
+</div>
+<footer><div class="wrap">MIT licensed · <a href="https://github.com/GamerNishant/chess-move-coach">Source on GitHub</a> · Not affiliated with Chess.com. Engine: Stockfish (GPL).</div></footer>
+</body>
+</html>

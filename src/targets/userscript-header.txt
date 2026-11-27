@@ -1,0 +1,23 @@
+// ==UserScript==
+// @name         Chess Move Coach
+// @namespace    https://github.com/GamerNishant/chess-move-coach
+// @version      __VERSION__
+// @description  Move-by-move feedback on chess.com: a one-line quick take plus an optional deep dive into the opponent's plan. Runs Stockfish on your device. Pauses during live games (fair play).
+// @author       GamerNishant
+// @license      MIT
+// @match        https://www.chess.com/*
+// @icon         https://gamernishant.github.io/chess-move-coach/icon.svg
+// @resource     stockfish https://cdn.jsdelivr.net/npm/stockfish@10.0.2/src/stockfish.asm.js
+// @grant        GM_getResourceText
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      chess-api.com
+// @run-at       document-idle
+// @noframes
+// @homepageURL  https://github.com/GamerNishant/chess-move-coach
+// @supportURL   https://github.com/GamerNishant/chess-move-coach/issues
+// @updateURL    https://gamernishant.github.io/chess-move-coach/chess-move-coach.user.js
+// @downloadURL  https://gamernishant.github.io/chess-move-coach/chess-move-coach.user.js
+// ==/UserScript==
