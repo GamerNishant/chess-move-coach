@@ -1,4 +1,4 @@
-/*! Chess Move Coach 1.0.0 (extension) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
+/*! Chess Move Coach 1.1.0 (extension) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
 (function () {
 'use strict';
 /*
@@ -2735,6 +2735,10 @@ button { box-sizing: border-box !important; }
 .badge { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 999px;
   font-size: 12px; font-weight: 650; color: #fff; background: var(--tone); white-space: nowrap; }
 .badge b { font-size: 12px; min-width: 14px; text-align: center; }
+.badge.checking { opacity: .55; }
+.verify { font-size: 11px; color: var(--muted); text-align: right; margin-top: 3px; }
+.verify::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--inacc); animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .25; } }
 .evalrow { display: flex; align-items: center; gap: 8px; margin: 8px 0 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bar { flex: 1; height: 6px; border-radius: 999px; background: #1a1917; overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; background: #eeeae2; transition: width .35s ease; }
@@ -2889,7 +2893,7 @@ function createPanel(opts) {
   const bullets = (arr) => (arr && arr.length ? h('ul', {}, arr.map((b) => h('li', {}, b))) : null);
   const line = (arr) => (arr && arr.length ? h('div', { class: 'line', 'aria-label': 'Engine line' }, arr.map((s) => h('span', {}, s))) : null);
 
-  function feedbackView(fb) {
+  function feedbackView(fb, verifying) {
     const tone = fb.cls.tone;
     const whitePct = Math.max(2, Math.min(98, Coach.winPct(fb.whiteCp)));
     const deep = h('div', { class: 'deep', id: 'cmc-deep', hidden: !deepOpen },
@@ -2904,8 +2908,10 @@ function createPanel(opts) {
     return h('div', {},
       h('div', { class: 'row' },
         h('div', {}, h('div', { class: 'who' }, fb.isUser ? 'Your move' : 'Their move'), h('div', { class: 'san' }, fb.moveLabel)),
-        h('span', { class: 'badge', style: { '--tone': TONE(tone) }, title: fb.cls.label },
-          h('b', { 'aria-hidden': 'true' }, fb.cls.symbol), fb.cls.label)),
+        h('div', { style: { marginLeft: 'auto' } },
+          h('span', { class: 'badge' + (verifying ? ' checking' : ''), style: { '--tone': TONE(tone) }, title: fb.cls.label },
+            h('b', { 'aria-hidden': 'true' }, fb.cls.symbol), fb.cls.label),
+          verifying ? h('div', { class: 'verify', role: 'status' }, 'Double-checking deeper…') : null)),
       h('div', { class: 'evalrow', title: 'White’s winning chances after the move' },
         h('span', {}, fb.evalBefore + ' → ' + fb.evalAfter),
         h('div', { class: 'bar', role: 'img', 'aria-label': `White ${Math.round(whitePct)} percent` }, h('i', { style: { width: whitePct + '%' } }))),
@@ -2930,10 +2936,11 @@ function createPanel(opts) {
       h('span', {}, label, hint ? h('small', {}, hint) : null),
       h('input', { type: 'checkbox', checked: !!settings[key], onchange: (e) => save({ [key]: e.target.checked }) }));
     return h('div', { class: 'set' },
-      h('div', {}, h('div', { class: 'lbl' }, 'Engine strength ', h('small', {}, '(speed vs. accuracy)')),
+      h('div', {}, h('div', { class: 'lbl' }, 'Engine strength ', h('small', {}, '(Fast ≈ depth 12 · Balanced 18 · Deep 22)')),
         h('div', { class: 'seg', role: 'group', 'aria-label': 'Engine strength' },
           strength.map(([k, l]) => h('button', { 'aria-pressed': String(settings.strength === k), onclick: () => { save({ strength: k }); draw(); } }, l)))),
       toggle('autoDeep', 'Open the deep dive automatically', 'Otherwise it stays one click (or Alt+D) away.'),
+      toggle('verify', 'Double-check mistakes and blunders', 'Re-runs the engine 4 moves deeper before a bad verdict is final.'),
       toggle('explainOpponent', 'Explain opponent moves too', 'Shows what their move threatens and your best reply.'),
       canUseOnline ? toggle('online', 'Online engine fallback', 'If the local engine can’t start, send positions (FEN only) to chess-api.com.') : null,
       h('div', { class: 'hint' }, 'Shortcuts: Alt+M show/hide · Alt+D deep dive. Drag the header to move the panel.'),
@@ -2954,7 +2961,7 @@ function createPanel(opts) {
         return stateView('⚠', 'Couldn’t analyze', s.text,
           h('button', { class: 'btn', onclick: () => onRetry && onRetry() }, 'Retry'),
           canUseOnline && s.offerOnline ? h('button', { class: 'btn primary', onclick: () => { save({ online: true }); onUseOnline && onUseOnline(); } }, 'Use online engine') : null);
-      case 'feedback': return feedbackView(s.fb);
+      case 'feedback': return feedbackView(s.fb, s.verifying);
       default: return null;
     }
   }
@@ -3007,12 +3014,16 @@ const UI = { createPanel };
  * about the position before and after it → hand both to Coach.explain → render.
  * Target-specific pieces (engine, settings storage) are passed in as adapters. */
 
+// Depth is the target; movetime is a safety cap for slow machines.
+// Stockfish 19 NNUE lite at depth 18 plays far above 2600, so Balanced is enough to
+// judge master-level moves; bad verdicts are re-checked 4 plies deeper (VERIFY).
 const STRENGTH = {
-  fast: { depth: 10, movetime: 1200 },
-  balanced: { depth: 14, movetime: 2500 },
-  deep: { depth: 18, movetime: 6000 },
+  fast: { depth: 12, movetime: 1500 },
+  balanced: { depth: 18, movetime: 4000 },
+  deep: { depth: 22, movetime: 10000 },
 };
-const DEFAULTS = { strength: 'balanced', autoDeep: false, explainOpponent: true, online: false, collapsed: false, pos: null };
+const VERIFY = ['mistake', 'blunder', 'miss'];
+const DEFAULTS = { strength: 'balanced', autoDeep: false, explainOpponent: true, verify: true, online: false, collapsed: false, pos: null };
 
 /**
  * @param adapters.engine  { analyze(fen, {depth, movetime}, settings) → Promise<result>, cancelAll(), label() }
@@ -3028,13 +3039,12 @@ async function startApp({ engine, store, canUseOnline }) {
 
   const ui = UI.createPanel({
     store, settings, canUseOnline,
-    onChange: (s, patch) => { if ('strength' in patch || 'explainOpponent' in patch || 'online' in patch) lastSig = null; },
+    onChange: (s, patch) => { if (['strength', 'explainOpponent', 'online', 'verify'].some((k) => k in patch)) lastSig = null; },
     onRetry: () => { lastSig = null; tick(); },
     onUseOnline: () => { lastSig = null; tick(); },
   });
 
-  async function evalFen(fen) {
-    const st = STRENGTH[ui.settings.strength] || STRENGTH.balanced;
+  async function evalFen(fen, st) {
     const key = fen.split(' ').slice(0, 4).join(' ') + '|' + st.depth;
     if (cache.has(key)) return cache.get(key);
     const r = await engine.analyze(fen, st, ui.settings);
@@ -3047,7 +3057,7 @@ async function startApp({ engine, store, canUseOnline }) {
     let cur;
     try { cur = Reader.currentMove(Chess); } catch (e) { return; }
     const s = ui.settings;
-    const sig = [location.pathname, cur.gate.allowed, cur.key || cur.idle, cur.userColor, s.strength, s.explainOpponent, s.online].join('|');
+    const sig = [location.pathname, cur.gate.allowed, cur.key || cur.idle, cur.userColor, s.strength, s.explainOpponent, s.verify, s.online].join('|');
     if (sig === lastSig) return;
     lastSig = sig;
     const my = ++token;
@@ -3073,15 +3083,34 @@ async function startApp({ engine, store, canUseOnline }) {
     engine.cancelAll();
     ui.render({ kind: 'loading', label, gate });
     try {
-      const before = await evalFen(cur.fenBefore);
-      if (my !== token) return;
+      const st = STRENGTH[s.strength] || STRENGTH.balanced;
       const c = new Chess(cur.fenBefore);
       c.move({ from: cur.uci.slice(0, 2), to: cur.uci.slice(2, 4), promotion: cur.uci[4] || 'q' });
-      const after = c.game_over() ? null : await evalFen(c.fen());
-      if (my !== token) return;
-      const fb = Coach.explain({ Chess, fenBefore: cur.fenBefore, uci: cur.uci, before, after, userColor: cur.userColor });
-      if (!fb) throw new Error('Could not replay that move.');
-      ui.render({ kind: 'feedback', fb, gate, engine: `${engine.label()} · depth ${before.depth || '?'} · ${cur.source}` });
+      const fenAfter = c.game_over() ? null : c.fen();
+      const run = async (lim) => {
+        const before = await evalFen(cur.fenBefore, lim);
+        if (my !== token) return null;
+        const after = fenAfter ? await evalFen(fenAfter, lim) : null;
+        if (my !== token) return null;
+        const fb = Coach.explain({ Chess, fenBefore: cur.fenBefore, uci: cur.uci, before, after, userColor: cur.userColor });
+        if (!fb) throw new Error('Could not replay that move.');
+        fb.depth = Math.min(before.depth || 0, after ? after.depth || 0 : 99);
+        return fb;
+      };
+      const footer = (fb, extra) => `${engine.label()} · depth ${fb.depth || '?'}${extra || ''} · ${cur.source}`;
+
+      let fb = await run(st);
+      if (!fb) return;
+      // A "Mistake"/"Blunder" label must never be a shallow-search artefact:
+      // show it right away, flagged, then confirm (or correct) it 4 plies deeper.
+      if (s.verify !== false && VERIFY.includes(fb.cls.key)) {
+        ui.render({ kind: 'feedback', fb, gate, verifying: true, engine: footer(fb) });
+        const deeper = await run({ depth: st.depth + 4, movetime: st.movetime * 2 });
+        if (!deeper) return;
+        deeper.verified = true;
+        fb = deeper;
+      }
+      ui.render({ kind: 'feedback', fb, gate, engine: footer(fb, fb.verified ? ' · double-checked' : '') });
     } catch (e) {
       if (my !== token || (e && e.message === 'cancelled')) return;
       ui.render({ kind: 'error', text: (e && e.message) || String(e), offerOnline: !!(e && e.engineUnavailable), gate });
@@ -3112,7 +3141,7 @@ const engine = {
   cancelAll() {
     try { chrome.runtime.sendMessage({ type: 'cmc:cancel', owner: OWNER }).catch(() => {}); } catch (e) { /* tab outlived the extension */ }
   },
-  label: () => 'Stockfish 10 · on-device',
+  label: () => 'Stockfish 19 NNUE · on-device',
 };
 
 const store = {

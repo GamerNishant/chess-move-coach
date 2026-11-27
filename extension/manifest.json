@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Chess Move Coach",
-  "version": "1.0.0",
-  "description": "Move-by-move feedback on chess.com: a one-line quick take plus a deep dive into the opponent's plan. Stockfish runs on your device.",
+  "version": "1.1.0",
+  "description": "Move-by-move feedback on chess.com: a one-line quick take plus a deep dive into the opponent's plan. Stockfish 19 runs on your device.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
@@ -41,5 +41,8 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }

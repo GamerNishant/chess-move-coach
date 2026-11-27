@@ -1,5 +1,6 @@
-/* Offscreen document: owns the single Stockfish worker shared by all tabs. */
-const engine = UciEngine(new Worker('engine/stockfish.asm.js'));
+/* Offscreen document: owns the single Stockfish 19 (NNUE lite, WASM) worker shared
+ * by all tabs. The .wasm sits next to the .js, which is where the loader looks. */
+const engine = UciEngine(new Worker('engine/stockfish-19-lite-single.js'));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.target !== 'offscreen') return;

@@ -1,4 +1,4 @@
-/*! Chess Move Coach 1.0.0 (offscreen) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
+/*! Chess Move Coach 1.1.0 (offscreen) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
 (function () {
 'use strict';
 /* uci.js — a small UCI client around a Stockfish Web Worker.
@@ -82,8 +82,9 @@ function UciEngine(worker) {
 }
 
 
-/* Offscreen document: owns the single Stockfish worker shared by all tabs. */
-const engine = UciEngine(new Worker('engine/stockfish.asm.js'));
+/* Offscreen document: owns the single Stockfish 19 (NNUE lite, WASM) worker shared
+ * by all tabs. The .wasm sits next to the .js, which is where the loader looks. */
+const engine = UciEngine(new Worker('engine/stockfish-19-lite-single.js'));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.target !== 'offscreen') return;

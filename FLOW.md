@@ -15,7 +15,7 @@ Order inside `content.js` and the userscript: `chess.js → board.js → coach.j
 1. **Bridge** (`src/bridge.js`, `cmcBridge(window)`). Every 300 ms it finds `wc-chess-board` and reads `game.getFEN()`, `getPlayingAs()` and `isGameOver()`. It writes them to `<html data-cmc-fen|as|over>`, or removes them if the game object isn't found.
 2. **Target entry** builds its adapters:
    - extension (`src/targets/extension-content.js`): `engine.analyze` = `chrome.runtime.sendMessage({type:'cmc:analyze', fen, depth, movetime, owner})`, and `store` = `chrome.storage.local`.
-   - userscript (`src/targets/userscript.js`): `makeEngine()` turns `GM_getResourceText('stockfish')` into a Blob URL, then `new Worker`, then `UciEngine`. It races `ready` against a 12 s timeout. `store` = `GM_getValue/GM_setValue`.
+   - userscript (`src/targets/userscript.js`): `makeEngine()` runs `bootSf19()`. It gets the JS with `GM_getResourceText('sf19')` and the .wasm with `fetchWasm()` (`GM_xmlhttpRequest`, arraybuffer). It builds a Blob worker from a prelude plus the engine source wrapped in `function __cmcBoot(){…}`. It posts the wasm bytes as the first message. The prelude patches `fetch` to return them, clears `onmessage` and calls `__cmcBoot()`, and the engine then installs its own UCI handler. Then `UciEngine(worker)` starts, with a 20 s ready timeout. If any step fails, `bootSf10()` runs (the asm.js `@resource 'sf10'` as a Blob worker). `store` = `GM_getValue/GM_setValue`.
 3. **`startApp`** (`src/app.js`) loads settings (merged over `DEFAULTS`), creates the panel (`UI.createPanel`), and starts `tick()` every 400 ms.
 
 ## Main loop: `tick()` in `src/app.js`
@@ -32,9 +32,10 @@ Order inside `content.js` and the userscript: `chess.js → board.js → coach.j
 3. Paused or idle: `engine.cancelAll()`, then `ui.render({kind:'paused'|'idle'})`.
 4. If it's an opponent move and *Explain opponent moves* is off: idle message.
 5. `engine.cancelAll()` stops stale searches. `ui.render({kind:'loading'})` shows the skeleton.
-6. `evalFen(fenBefore)`, then `evalFen(fenAfter)` (skipped when the game is over). Both read the cache first, keyed on FEN without clocks plus depth. The "after" of move *n* is the "before" of move *n+1*, so stepping forward usually costs one search.
+6. `run(STRENGTH[s.strength])` calls `evalFen(fenBefore, lim)`, then `evalFen(fenAfter, lim)` (skipped when the game is over). Both read the cache first, keyed on FEN without clocks plus depth. The "after" of move *n* is the "before" of move *n+1*, so stepping forward usually costs one search. Then `Coach.explain(...)`, and `fb.depth` = the lower of the two depths.
 7. If `token` changed while awaiting (a newer move was selected), the result is dropped.
-8. `Coach.explain({...})` builds the feedback object, then `ui.render({kind:'feedback', fb, engine})`.
+8. Double-check: if `settings.verify` is on and the class is `mistake`, `blunder` or `miss`, it renders `{kind:'feedback', verifying:true}`. That dims the badge and shows "Double-checking deeper…". It then runs `run({depth+4, movetime×2})` and uses that result, with `fb.verified = true`.
+9. `ui.render({kind:'feedback', fb, engine})`. The footer shows the engine, the depth, "double-checked" if verified, and the move source.
 
 ## Engine request paths
 
@@ -43,13 +44,13 @@ Order inside `content.js` and the userscript: `chess.js → board.js → coach.j
 content.js engine.analyze ──runtime.sendMessage──► background.js onMessage
   ensureOffscreen() → chrome.offscreen.createDocument('offscreen.html', WORKERS) (once)
   ──runtime.sendMessage({target:'offscreen', owner: tabId:rand})──► offscreen.js
-  UciEngine.analyze → Worker('engine/stockfish.asm.js')
+  UciEngine.analyze → Worker('engine/stockfish-19-lite-single.js' + .wasm; manifest CSP allows 'wasm-unsafe-eval')
      position fen … / go depth D movetime T → info … pv … → bestmove
   ◄── {result} or {error, engineUnavailable} ── back through both hops
 ```
 `cmc:cancel` follows the same path and calls `UciEngine.cancelAll(owner)`. That rejects the owner's queued jobs and sends `stop` to its running job, whose promise then rejects with `cancelled`.
 
-**Userscript:** `makeEngine().analyze` waits for `booting`, then calls `local.analyze`. If the engine is unavailable and settings.online is on, it calls `remoteEngine(fen, depth)`, which uses `GM_xmlhttpRequest` POST to `https://chess-api.com/v1`. Scores there are from White's side and get converted to side-to-move.
+**Userscript:** `makeEngine().analyze` waits for `booting` (SF19, else SF10), then calls `local.analyze`. If the engine is unavailable and settings.online is on, it calls `remoteEngine(fen, depth)`, which uses `GM_xmlhttpRequest` POST to `https://chess-api.com/v1`. Scores there are from White's side and get converted to side-to-move.
 
 **UCI parsing** (`src/uci.js`): it keeps the last `info … pv` line without `multipv ≥2` and without a lower or upper bound, and keeps only UCI-shaped PV tokens (Stockfish.js appends `bmc …`). On `bestmove` it resolves `{fen, depth, cp|mate, pv, bestMove}`. `bestmove (none)` means mate or stalemate.
 

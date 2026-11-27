@@ -1,4 +1,4 @@
-/*! Chess Move Coach 1.0.0 (page bridge) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
+/*! Chess Move Coach 1.1.0 (page bridge) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
 (function () {
 'use strict';
 /* bridge.js — runs in the PAGE's JavaScript world (not the extension's isolated one),

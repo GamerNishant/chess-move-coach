@@ -82,7 +82,7 @@
     <div>
       <div class="brand"><img src="icon.svg" alt="">Chess Move Coach</div>
       <h1>Know what every move did, and what's coming next.</h1>
-      <p class="lede">A small panel on chess.com that explains each move in one line, and goes deeper into your opponent's plan when you want it. Stockfish runs on your own device.</p>
+      <p class="lede">A small panel on chess.com that explains each move in one line, and goes deeper into your opponent's plan when you want it. Stockfish 19 runs on your own device, strong enough to judge 2600-level play.</p>
       <div class="ctas">
         <a class="btn primary" href="chess-move-coach.user.js">Install the userscript</a>
         <a class="btn ghost" href="https://github.com/GamerNishant/chess-move-coach/releases/latest">Get the browser extension</a>
@@ -107,7 +107,7 @@
     <div class="grid3">
       <div class="card"><div class="num">1</div><h3>Quick take</h3><p>One line on what the move did, one on what happens next, and a better move when there was one.</p></div>
       <div class="card"><div class="num">2</div><h3>Deep dive</h3><p>What your move changed, your opponent's plan move by move, and how to answer it. Opens with a click or <kbd>Alt</kbd>+<kbd>D</kbd>.</p></div>
-      <div class="card"><div class="num">3</div><h3>Grounded in the engine</h3><p>Each sentence comes from Stockfish's best line plus a board check for forks, hanging pieces and threats.</p></div>
+      <div class="card"><div class="num">3</div><h3>Grounded in the engine</h3><p>Each sentence comes from Stockfish 19's best line plus a board check for forks, hanging pieces and threats. Every mistake or blunder is double-checked deeper before it's final.</p></div>
     </div>
   </section>
 
@@ -145,7 +145,7 @@
 
   <section>
     <h2>Privacy</h2>
-    <p class="sub" style="margin:0">The extension sends nothing anywhere; the engine runs in your browser. The userscript does the same, unless the local engine can't start and you switch on the optional online engine, which sends only the board position (a FEN string) to chess-api.com.</p>
+    <p class="sub" style="margin:0">The extension sends nothing anywhere; the engine is bundled and runs in your browser. The userscript downloads the engine from this site and also analyzes locally, unless the local engine can't start and you switch on the optional online engine, which sends only the board position (a FEN string) to chess-api.com.</p>
   </section>
 </div>
 <footer><div class="wrap">MIT licensed · <a href="https://github.com/GamerNishant/chess-move-coach">Source on GitHub</a> · Not affiliated with Chess.com. Engine: Stockfish (GPL).</div></footer>

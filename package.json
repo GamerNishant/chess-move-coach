@@ -1,6 +1,6 @@
 {
   "name": "chess-move-coach",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Move-by-move feedback for chess.com as a Chromium extension and a Tampermonkey userscript.",
   "license": "MIT",

@@ -37,6 +37,10 @@ button { box-sizing: border-box !important; }
 .badge { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 999px;
   font-size: 12px; font-weight: 650; color: #fff; background: var(--tone); white-space: nowrap; }
 .badge b { font-size: 12px; min-width: 14px; text-align: center; }
+.badge.checking { opacity: .55; }
+.verify { font-size: 11px; color: var(--muted); text-align: right; margin-top: 3px; }
+.verify::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--inacc); animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .25; } }
 .evalrow { display: flex; align-items: center; gap: 8px; margin: 8px 0 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bar { flex: 1; height: 6px; border-radius: 999px; background: #1a1917; overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; background: #eeeae2; transition: width .35s ease; }
@@ -191,7 +195,7 @@ function createPanel(opts) {
   const bullets = (arr) => (arr && arr.length ? h('ul', {}, arr.map((b) => h('li', {}, b))) : null);
   const line = (arr) => (arr && arr.length ? h('div', { class: 'line', 'aria-label': 'Engine line' }, arr.map((s) => h('span', {}, s))) : null);
 
-  function feedbackView(fb) {
+  function feedbackView(fb, verifying) {
     const tone = fb.cls.tone;
     const whitePct = Math.max(2, Math.min(98, Coach.winPct(fb.whiteCp)));
     const deep = h('div', { class: 'deep', id: 'cmc-deep', hidden: !deepOpen },
@@ -206,8 +210,10 @@ function createPanel(opts) {
     return h('div', {},
       h('div', { class: 'row' },
         h('div', {}, h('div', { class: 'who' }, fb.isUser ? 'Your move' : 'Their move'), h('div', { class: 'san' }, fb.moveLabel)),
-        h('span', { class: 'badge', style: { '--tone': TONE(tone) }, title: fb.cls.label },
-          h('b', { 'aria-hidden': 'true' }, fb.cls.symbol), fb.cls.label)),
+        h('div', { style: { marginLeft: 'auto' } },
+          h('span', { class: 'badge' + (verifying ? ' checking' : ''), style: { '--tone': TONE(tone) }, title: fb.cls.label },
+            h('b', { 'aria-hidden': 'true' }, fb.cls.symbol), fb.cls.label),
+          verifying ? h('div', { class: 'verify', role: 'status' }, 'Double-checking deeper…') : null)),
       h('div', { class: 'evalrow', title: 'White’s winning chances after the move' },
         h('span', {}, fb.evalBefore + ' → ' + fb.evalAfter),
         h('div', { class: 'bar', role: 'img', 'aria-label': `White ${Math.round(whitePct)} percent` }, h('i', { style: { width: whitePct + '%' } }))),
@@ -232,10 +238,11 @@ function createPanel(opts) {
       h('span', {}, label, hint ? h('small', {}, hint) : null),
       h('input', { type: 'checkbox', checked: !!settings[key], onchange: (e) => save({ [key]: e.target.checked }) }));
     return h('div', { class: 'set' },
-      h('div', {}, h('div', { class: 'lbl' }, 'Engine strength ', h('small', {}, '(speed vs. accuracy)')),
+      h('div', {}, h('div', { class: 'lbl' }, 'Engine strength ', h('small', {}, '(Fast ≈ depth 12 · Balanced 18 · Deep 22)')),
         h('div', { class: 'seg', role: 'group', 'aria-label': 'Engine strength' },
           strength.map(([k, l]) => h('button', { 'aria-pressed': String(settings.strength === k), onclick: () => { save({ strength: k }); draw(); } }, l)))),
       toggle('autoDeep', 'Open the deep dive automatically', 'Otherwise it stays one click (or Alt+D) away.'),
+      toggle('verify', 'Double-check mistakes and blunders', 'Re-runs the engine 4 moves deeper before a bad verdict is final.'),
       toggle('explainOpponent', 'Explain opponent moves too', 'Shows what their move threatens and your best reply.'),
       canUseOnline ? toggle('online', 'Online engine fallback', 'If the local engine can’t start, send positions (FEN only) to chess-api.com.') : null,
       h('div', { class: 'hint' }, 'Shortcuts: Alt+M show/hide · Alt+D deep dive. Drag the header to move the panel.'),
@@ -256,7 +263,7 @@ function createPanel(opts) {
         return stateView('⚠', 'Couldn’t analyze', s.text,
           h('button', { class: 'btn', onclick: () => onRetry && onRetry() }, 'Retry'),
           canUseOnline && s.offerOnline ? h('button', { class: 'btn primary', onclick: () => { save({ online: true }); onUseOnline && onUseOnline(); } }, 'Use online engine') : null);
-      case 'feedback': return feedbackView(s.fb);
+      case 'feedback': return feedbackView(s.fb, s.verifying);
       default: return null;
     }
   }

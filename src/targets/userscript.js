@@ -32,26 +32,64 @@ function remoteEngine(fen, depth) {
 
 function makeEngine() {
   let local = null;
-  let mode = 'local';
-  const boot = () => {
-    try {
-      const src = GM_getResourceText('stockfish');
-      if (!src) throw new Error('engine file missing');
-      const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-      local = UciEngine(new Worker(url));
-      const timeout = new Promise((_, rej) => setTimeout(() => rej(unavailable('The local engine did not start (this page may block it).')), 12000));
-      return Promise.race([local.ready, timeout]);
-    } catch (e) {
-      return Promise.reject(unavailable('The local engine could not start: ' + e.message));
-    }
+  let mode = 'sf19';
+  const LABELS = {
+    sf19: 'Stockfish 19 NNUE · on-device',
+    sf10: 'Stockfish 10 (fallback) · on-device',
+    online: 'Stockfish · chess-api.com (online)',
   };
-  const booting = boot();
-  booting.catch(() => { local = null; });
+
+  const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(unavailable(msg)), ms))]);
+
+  // Stockfish 19 needs its .wasm. A Blob worker on chess.com may not be allowed to
+  // fetch it, so we download the bytes here (GM_xmlhttpRequest ignores page CSP)
+  // and hand them to the worker, whose fetch() is patched to serve them.
+  function fetchWasm() {
+    return new Promise((resolve, reject) => GM_xmlhttpRequest({
+      method: 'GET', url: SF19_WASM, responseType: 'arraybuffer', timeout: 30000,
+      onload: (r) => (r.status === 200 && r.response ? resolve(r.response) : reject(new Error('HTTP ' + r.status))),
+      onerror: () => reject(new Error('download failed')),
+      ontimeout: () => reject(new Error('download timed out')),
+    }));
+  }
+
+  async function bootSf19() {
+    const js = GM_getResourceText('sf19');
+    if (!js) throw new Error('engine file missing');
+    const wasm = await fetchWasm();
+    const prelude =
+      'self.onmessage=function(e){var bytes=e.data;' +
+      'self.fetch=function(){return Promise.resolve(new Response(bytes,{headers:{"Content-Type":"application/wasm"}}))};' +
+      'self.onmessage=null;__cmcBoot();};\nfunction __cmcBoot(){\n';
+    const url = URL.createObjectURL(new Blob([prelude, js, '\n}'], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    w.postMessage(wasm, [wasm]); // first message = the wasm bytes; UCI follows
+    const eng = UciEngine(w);
+    await withTimeout(eng.ready, 20000, 'Stockfish 19 did not start.');
+    return eng;
+  }
+
+  async function bootSf10() {
+    const src = GM_getResourceText('sf10');
+    if (!src) throw new Error('fallback engine missing');
+    const eng = UciEngine(new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))));
+    await withTimeout(eng.ready, 12000, 'The local engine did not start (this page may block it).');
+    return eng;
+  }
+
+  const booting = (async () => {
+    try { local = await bootSf19(); mode = 'sf19'; return; } catch (e) { console.warn('[Move Coach] Stockfish 19 unavailable:', e.message); }
+    try { local = await bootSf10(); mode = 'sf10'; } catch (e) {
+      local = null;
+      throw unavailable('The local engine could not start on this page: ' + e.message);
+    }
+  })();
+  booting.catch(() => {});
+
   return {
     async analyze(fen, st, settings) {
       try {
         await booting;
-        mode = 'local';
         return await local.analyze(fen, st.depth, st.movetime);
       } catch (e) {
         if (!e.engineUnavailable || !settings.online) throw e;
@@ -60,9 +98,11 @@ function makeEngine() {
       }
     },
     cancelAll() { if (local) local.cancelAll(); },
-    label: () => (mode === 'online' ? 'Stockfish · chess-api.com (online)' : 'Stockfish 10 · on-device'),
+    label: () => LABELS[mode],
   };
 }
+
+const SF19_WASM = 'https://gamernishant.github.io/chess-move-coach/engine/stockfish-19-lite-single.wasm';
 
 const store = {
   get: async () => GM_getValue('cmc', null),

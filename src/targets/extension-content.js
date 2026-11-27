@@ -17,7 +17,7 @@ const engine = {
   cancelAll() {
     try { chrome.runtime.sendMessage({ type: 'cmc:cancel', owner: OWNER }).catch(() => {}); } catch (e) { /* tab outlived the extension */ }
   },
-  label: () => 'Stockfish 10 · on-device',
+  label: () => 'Stockfish 19 NNUE · on-device',
 };
 
 const store = {

@@ -1,4 +1,4 @@
-/*! Chess Move Coach 1.0.0 (background) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
+/*! Chess Move Coach 1.1.0 (background) | MIT | bundles chess.js (BSD-2) — built file, edit src/ */
 /* Background service worker: relays engine requests from chess.com tabs to the
  * offscreen document (a service worker cannot start the engine's Web Worker). */
 let creating = null;

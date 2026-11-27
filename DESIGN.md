@@ -21,7 +21,7 @@ It runs as two products built from the same source:
 |---|---|
 | Plain JavaScript, no framework, no bundler | It's a small UI. A concatenating build script (`scripts/build.mjs`) gives two targets with no toolchain to maintain. |
 | [chess.js 0.13.4](https://github.com/jhlywa/chess.js) | Move legality, SAN↔move conversion and FEN. It's vendored, and its `export` keywords are stripped at build time so it shares the IIFE scope. |
-| Stockfish.js 10 **asm.js** build | Pure JavaScript, so it needs no WASM file, no SharedArrayBuffer and no special headers. It works as a plain Worker in both targets. Its `ccall` path doesn't use `eval`, so it passes MV3's CSP. It reaches about depth 14 in 2.5 s, which is enough to explain human moves. |
+| Stockfish.js **19 lite, single-threaded WASM** (NNUE) | It's about 1.9 MB, needs no SharedArrayBuffer and no cross-origin isolation, and reaches depth 18 in about 2–4 s. That is far above 2600 strength, so the coach can judge master-level moves. The extension needs `'wasm-unsafe-eval'` in its CSP. The userscript keeps Stockfish.js 10 (asm.js) as a fallback for pages that block WASM. |
 | Shadow DOM (closed) for the panel | chess.com's CSS can't break the panel, and the panel's CSS can't leak into chess.com. |
 | Heuristic text generation instead of an LLM | It's instant, free, needs no API key and works offline. Every claim comes from the engine line plus exact board geometry, so it's never vague. |
 
@@ -58,12 +58,14 @@ Built files (`extension/content.js`, `bridge.js`, `background.js`, `offscreen.js
 There's no database. The state is:
 
 - **Settings** (`chrome.storage.local["cmc"]` or `GM_setValue("cmc")`):
-  `{ strength: 'fast'|'balanced'|'deep', autoDeep, explainOpponent, online, collapsed, pos: {right,bottom}|null }`
+  `{ strength: 'fast'|'balanced'|'deep', verify, autoDeep, explainOpponent, online, collapsed, pos: {right,bottom}|null }`
 - **Engine cache** (in memory, per tab, at most 400 entries): key `FEN-without-clocks | depth` → `{ cp|mate (side-to-move POV), pv[], bestMove, depth }`.
 - **Feedback object** (output of `Coach.explain`): `{ moveLabel, san, uci, mover, isUser, cls{key,label,symbol,tone}, evalBefore, evalAfter, drop, whiteCp, quick{headline,next,better}, deep{did[], plan{title,summary,bullets,line}, yours{title,bullets,line}} }`.
 
 ## Key decisions and trade-offs
 
+- **Engine budget.** Strength presets are a target depth plus a time cap (`STRENGTH` in `app.js`): Fast 12/1.5 s, Balanced 18/4 s, Deep 22/10 s. A bad verdict (Mistake, Blunder, Missed win) is shown at once but marked "Double-checking deeper…". Both positions are then searched again at depth +4 with twice the time, and that result replaces the first. A quick shallow search can't make a final call on its own. Inaccuracies are not re-checked, because they cost little and are too frequent.
+- **Engine hosting for the userscript.** jsDelivr refuses the 200 MB `stockfish` npm package, so `npm run build` copies the SF19 .js and .wasm into `docs/engine/`, which GitHub Pages serves. The .js is an `@resource`. The .wasm is downloaded with `GM_xmlhttpRequest`, which ignores page CSP, and handed to a Blob worker whose `fetch` is patched to return those bytes. The worker itself never touches the network, so a strict `connect-src` on chess.com can't break it. This was tested under `connect-src 'self'`.
 - **Classification by win-probability drop.** The drop is computed with Lichess's logistic win-% formula, not raw centipawns, so a 200 cp slip at +8 doesn't count as a blunder. The thresholds are <2 Excellent, <5 Good, <10 Inaccuracy, <20 Mistake, otherwise Blunder. "Best" means it matched the engine's move. "Forced" means it was the only legal move. "Missed win" means a forced mate was missed but the position is still winning.
 - **Headline priority.** Mate facts come first, then a hung piece (only when the engine's reply really takes it), then a tactic the move allows (fork, capture or threat), then material won or lost, then eval-state change, then the move's own motif. The most concrete true statement wins.
 - **The engine line is the source of truth.** Board heuristics only *name* what the engine shows. For example, "hangs" requires the engine's reply to capture that piece.
@@ -72,7 +74,7 @@ There's no database. The state is:
 - **Fair-play gate (`Reader.gate`).** Feedback is allowed on `/analysis`, `/explorer` and vs-computer pages. It's allowed on `/game|play|live|daily` pages only once the game is over (bridge `isGameOver()` or game-over DOM). It's always off on puzzles, and off on unknown pages. Failing closed is intentional.
 - **Extension engine in an offscreen document.** MV3 service workers can't start Workers, and a content script can't start an extension-origin Worker. One offscreen document serves every tab. Jobs are tagged with `tabId:randomId`, so one tab can't cancel another tab's search.
 - **Userscript engine as a Blob Worker.** If chess.com's CSP blocks it, the error state offers an **opt-in** online engine (chess-api.com, FEN only). It's off by default.
-- **Asm.js Stockfish 10 instead of NNUE 16.** It's weaker but far smaller (≈1 MB, no 40 MB network file) and runs everywhere. For explaining club-level moves at depth 12–18 it's more than strong enough.
+- **SF19 lite instead of the full SF19 (≈94 MB) or multi-threaded builds.** The lite network is weaker than the full one but still far stronger than any human. It loads in about a second, and it avoids the COOP/COEP headers that threads would need.
 
 ## Security and privacy
 
@@ -80,7 +82,7 @@ There's no database. The state is:
 - The closed shadow root means page scripts can't read or change the panel.
 - The bridge only *reads* the game object. It never calls a method that changes the game.
 - Permissions: `storage` and `offscreen` only. Content scripts are limited to `https://www.chess.com/*`. There are no host permissions and no remote code.
-- Network: the extension makes no requests. The userscript fetches the Stockfish file once from jsDelivr (the `@resource`, which Tampermonkey caches), and calls chess-api.com only when the user turns on the online fallback.
+- Network: the extension makes no requests, because the engine is bundled. The userscript downloads the engine from this project's GitHub Pages: the SF19 .js as an `@resource`, and the .wasm on each page load, which the browser may cache. The SF10 fallback comes from jsDelivr. It calls chess-api.com only when the user turns on the online fallback.
 
 ## How to extend
 

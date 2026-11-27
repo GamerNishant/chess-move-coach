@@ -23,7 +23,15 @@ write('extension/bridge.js', banner('page bridge') + iife(read('src/bridge.js'),
 write('extension/background.js', banner('background') + read('src/targets/extension-background.js'));
 write('extension/offscreen.js', banner('offscreen') + iife(read('src/uci.js'), read('src/targets/extension-offscreen.js')));
 mkdirSync(join(root, 'extension/engine'), { recursive: true });
-copyFileSync(join(root, 'vendor/stockfish.asm.js'), join(root, 'extension/engine/stockfish.asm.js'));
+for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'stockfish.COPYING.txt']) {
+  copyFileSync(join(root, 'vendor', f), join(root, 'extension/engine', f === 'stockfish.COPYING.txt' ? 'COPYING.txt' : f));
+}
+// The userscript loads Stockfish 19 from our own GitHub Pages (jsDelivr refuses the
+// 200 MB npm package), so publish the engine pair next to the install page.
+mkdirSync(join(root, 'docs/engine'), { recursive: true });
+for (const f of ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm']) {
+  copyFileSync(join(root, 'vendor', f), join(root, 'docs/engine', f));
+}
 const manifest = JSON.parse(read('extension/manifest.json'));
 manifest.version = version;
 write('extension/manifest.json', JSON.stringify(manifest, null, 2) + '\n');
